@@ -1,0 +1,25 @@
+/* Global stylesheet — imported once in main.js.
+   Tailwind injects its generated utility classes at these three
+   directives; everything below them is our own small set of overrides
+   that apply app-wide (not worth making a utility class for). */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body,
+#app {
+  height: 100%;
+}
+
+body {
+  @apply bg-white text-slate-900 antialiased;
+}
+
+/* Thin, unobtrusive scrollbar for the workspace area — purely cosmetic,
+   keeps the data-dense tables from feeling cluttered with a fat default
+   scrollbar. Falls back silently in browsers that don't support it. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}

@@ -1,0 +1,40 @@
+name: CI
+
+# Runs on every push and PR so a broken build/test is caught before merge,
+# not after deploy.
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  frontend:
+    name: Lint + test + build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # --if-present: this project doesn't have lint/test scripts wired
+      # up yet, so these are no-ops today rather than a red build; the
+      # moment `lint`/`test` scripts are added to package.json, CI starts
+      # enforcing them automatically with no workflow change needed.
+      - name: Lint
+        run: npm run lint --if-present
+
+      - name: Test
+        run: npm test --if-present
+
+      - name: Build
+        run: npm run build
