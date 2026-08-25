@@ -2,28 +2,21 @@
 
 This repo (`hr-portal-frontend`) is one half of a two-repo deployment —
 `hr-portal-api` is the sibling backend repo, expected checked out next to
-this one on disk (`../backend`) for local dev, and deployed as its own
-separate ECS service in AWS.
+this one on disk (`../backend`) for local dev. This repo builds to static
+files and deploys to S3; the backend deploys as containers on a single
+EC2 instance — see that repo's `DEPLOYMENT.md` for the full picture.
 
-## ⚠️ No authentication yet — read this before touching `ALLOWED_CIDR`
+## ⚠️ No authentication yet
 
 **The backend API has no authentication or authorization of any kind.**
 This frontend is a thin client over it — it adds no access control of its
-own. The entire safety of the deployment rests on ONE control: the ALB's
-security group only allows inbound traffic from `var.allowed_cidr`
-(Terraform, see `infra/variables.tf`) — your office/VPN IP range.
-
-- `allowed_cidr` has **no default** and Terraform hard-fails if it's ever
-  set to `0.0.0.0/0` — this must never be opened to the whole internet by
-  accident.
-- **Do not** widen `allowed_cidr` or put this behind anything other than
-  the office/VPN CIDR **until real authentication is added to the
-  backend API.** A prettier UI doesn't change what's actually protecting
-  the underlying HR data — that's still just the CIDR restriction.
-- Full detail on what's provisioned and why lives in the backend repo's
-  `DEPLOYMENT.md` and this repo's synced `infra/` copy (see
-  `infra/README.md` — **that copy is a read-only mirror; the backend
-  repo's `infra/` is the one that ever gets `terraform apply`'d**).
+own. The entire safety of the deployment rests on the EC2 security
+group and S3 bucket policy, both governed by `api_allowed_cidrs`
+(Terraform, in the backend repo's `infra/`) — see that repo's
+`DEPLOYMENT.md` for the full explanation, including why `api_allowed_cidrs`
+is validated to reject `0.0.0.0/0`. **Do not** ask for that restriction
+to be widened "just for a demo" until real authentication exists in the
+API.
 
 ## Local development (docker-compose)
 
@@ -59,36 +52,44 @@ merge.
 
 ## CD (`.github/workflows/cd.yml`)
 
-Runs on every push to `main`, plus manual `workflow_dispatch`. Builds the
-Docker image with `VITE_API_BASE_URL=/api` baked in at build time (a
-relative path — works unchanged behind the ALB, which routes `/api/*` to
-the backend at the same host), tags it with the git SHA (and `latest`),
-pushes to the `hr-portal-frontend` ECR repo, then updates the
-`hr-portal-frontend` ECS service and waits for the deployment to
-stabilize.
+Runs on every push to `main`, plus manual `workflow_dispatch`. It:
+
+1. `npm ci` + `npm run build`, with `VITE_API_BASE_URL` (a repo Actions
+   variable) as a real build-time env var — Vite inlines it into the
+   compiled bundle, so it has to be set before `vite build` runs, not
+   after. It's an **absolute, cross-origin URL** (the backend EC2
+   instance's Elastic IP), not a relative `/api` path — frontend (S3)
+   and backend (EC2) are different origins in this deployment, which is
+   why every backend controller carries `@CrossOrigin("*")`.
+2. Syncs `dist/` to the `S3_BUCKET` repo variable, in two passes:
+   hashed JS/CSS get a long, immutable cache (safe — a new deploy gets
+   new filenames), `index.html` gets `no-cache` explicitly, since a
+   stale cached `index.html` is what would make a deploy silently not
+   show up for a returning visitor.
 
 Authenticates via **GitHub OIDC**, not stored access keys — assumes the
-`github_deploy_frontend` IAM role (`infra/iam_github_oidc.tf`), trusted
-only for this exact repo. That role can push to the
-`hr-portal-frontend` ECR repo and update the `hr-portal-frontend` ECS
-service — nothing else, and nothing belonging to the backend.
+`hr-portal-github-deploy-frontend` IAM role (`infra/iam_github_oidc.tf`
+in the backend repo), trusted only for this exact repo. That role can
+only write to this one S3 bucket — nothing else, and nothing belonging
+to the backend (in particular, no ECR/ECS/EC2 permissions at all; if you
+see an `ecr:GetAuthorizationToken` or similar AccessDenied here, the
+workflow has drifted back toward the old container-based deploy this
+repo no longer uses).
 
 ## One-time AWS setup
 
 The actual `terraform apply` happens from the **backend repo**
 (`hr-portal-api/infra/` is canonical — see that repo's `DEPLOYMENT.md`
-for the full first-time setup). What's specific to this repo:
+for the full first-time setup). What's specific to this repo: after that
+apply succeeds, set in this repo's GitHub settings (Settings → Secrets
+and variables → Actions → Variables): `AWS_DEPLOY_ROLE_ARN` (Terraform's
+`github_deploy_role_arn_frontend` output), `AWS_REGION`, `S3_BUCKET`
+(Terraform's `frontend_bucket_name` output), and `VITE_API_BASE_URL`
+(Terraform's `api_base_url` output — re-run this workflow after any
+change to the backend's Elastic IP or port, since the value is baked
+into the bundle at build time).
 
-1. After the backend repo's `terraform apply` succeeds, set in this
-   repo's GitHub settings (Settings → Secrets and variables → Actions →
-   Variables): `AWS_DEPLOY_ROLE_ARN` = Terraform's
-   `github_deploy_role_arn_frontend` output, `AWS_REGION`,
-   `ECS_CLUSTER_NAME` = Terraform's `ecs_cluster_name` output.
-
-2. Same chicken-and-egg first deploy note as the backend: the initial
-   ECS task definition Terraform registers won't have a real image to
-   run until this repo's CD workflow is manually triggered
-   (`workflow_dispatch`) at least once.
-
-3. HTTPS/custom domain: not set up yet, same as the backend — see that
-   repo's `DEPLOYMENT.md` for the TODO.
+HTTPS/custom domain: not set up yet — S3 website endpoints cannot serve
+HTTPS at all, so this needs a CDN (CloudFront or Cloudflare) in front of
+both surfaces before that's possible. See the backend repo's
+`DEPLOYMENT.md` for the same TODO.

@@ -2,10 +2,7 @@ name: CD
 
 # Deploys on every merge to main (small team, trunk-based — no separate
 # release-train process needed at this scale) plus a manual trigger for
-# re-running a deploy without a new commit (e.g. after fixing an AWS-side
-# issue, or the required first-ever deploy after `terraform apply` — see
-# DEPLOYMENT.md, the initial ECS task definition can't start until a real
-# image exists in ECR).
+# re-running a deploy without a new commit.
 on:
   push:
     branches: [main]
@@ -17,84 +14,60 @@ permissions:
 
 env:
   AWS_REGION: ${{ vars.AWS_REGION }}
-  ECS_CLUSTER: ${{ vars.ECS_CLUSTER_NAME }}
-  ECR_REPO: hr-portal-frontend
-  ECS_SERVICE: hr-portal-frontend
-  ECS_CONTAINER_NAME: hr-portal-frontend
+  S3_BUCKET: ${{ vars.S3_BUCKET }}
+  VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
 
 jobs:
-  build-and-push:
-    name: Build & push image
+  deploy:
+    name: Build & sync to S3
     runs-on: ubuntu-latest
-    outputs:
-      image-tag: ${{ steps.tag.outputs.value }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Compute image tag
-        id: tag
-        run: echo "value=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # VITE_API_BASE_URL is a build-time value — Vite inlines
+      # import.meta.env.VITE_API_BASE_URL into the compiled bundle, so it
+      # has to be a real env var here, not something set at deploy time.
+      # It's an absolute cross-origin URL (the backend's EC2 Elastic IP,
+      # not a relative /api path) because frontend (S3) and backend (EC2)
+      # are different origins now — see the note in http.js and the repo
+      # README for why @CrossOrigin("*") on every controller is required.
+      - name: Build
+        run: npm run build
 
       # No long-lived AWS access keys stored as secrets: this exchanges
       # the workflow's short-lived GitHub OIDC token for temporary AWS
       # credentials via the IAM role in infra/iam_github_oidc.tf, which
-      # trusts only this exact repo (see that file's condition).
+      # trusts only this exact repo (see that file's condition). The role
+      # can write only to this one S3 bucket — nothing else, and nothing
+      # belonging to the backend.
       - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Login to ECR
-        id: ecr-login
-        uses: aws-actions/amazon-ecr-login@v2
-
-      - name: Build & push image
-        env:
-          REGISTRY: ${{ steps.ecr-login.outputs.registry }}
-          TAG: ${{ steps.tag.outputs.value }}
+      # Two passes so index.html and the hashed assets get opposite
+      # caching: the hashed JS/CSS filenames are safe to cache
+      # indefinitely (a new deploy gets new filenames), but index.html
+      # must never be cached — it is what points the browser at the
+      # current filenames, and a cached stale index.html is what makes a
+      # deploy silently not show up for returning visitors.
+      - name: Sync hashed assets (long cache)
         run: |
-          docker build \
-            --build-arg VITE_API_BASE_URL=/api \
-            -t "$REGISTRY/$ECR_REPO:$TAG" -t "$REGISTRY/$ECR_REPO:latest" .
-          docker push "$REGISTRY/$ECR_REPO:$TAG"
-          docker push "$REGISTRY/$ECR_REPO:latest"
+          aws s3 sync dist/ "s3://$S3_BUCKET" \
+            --delete \
+            --exclude index.html \
+            --cache-control "public,max-age=31536000,immutable"
 
-  deploy:
-    name: Deploy to ECS
-    runs-on: ubuntu-latest
-    needs: build-and-push
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Configure AWS credentials via OIDC
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Login to ECR
-        id: ecr-login
-        uses: aws-actions/amazon-ecr-login@v2
-
-      - name: Fetch current task definition
+      - name: Upload index.html (no cache)
         run: |
-          aws ecs describe-task-definition \
-            --task-definition "$ECS_SERVICE" \
-            --query taskDefinition > task-def.json
-
-      - name: Render task definition with new image
-        id: render
-        uses: aws-actions/amazon-ecs-render-task-definition@v1
-        with:
-          task-definition: task-def.json
-          container-name: ${{ env.ECS_CONTAINER_NAME }}
-          image: ${{ steps.ecr-login.outputs.registry }}/${{ env.ECR_REPO }}:${{ needs.build-and-push.outputs.image-tag }}
-
-      - name: Deploy to ECS
-        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
-        with:
-          task-definition: ${{ steps.render.outputs.task-definition }}
-          service: ${{ env.ECS_SERVICE }}
-          cluster: ${{ env.ECS_CLUSTER }}
-          wait-for-service-stability: true
+          aws s3 cp dist/index.html "s3://$S3_BUCKET/index.html" \
+            --cache-control "no-cache"
