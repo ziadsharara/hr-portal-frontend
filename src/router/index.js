@@ -4,11 +4,25 @@
 // giant component.
 import { createRouter, createWebHistory } from 'vue-router'
 
-// Views are lazy-loaded (the `() => import(...)` arrow function form)
-// instead of imported directly at the top of the file. Vite splits each
-// of these into its own JS chunk that's only downloaded when the user
-// actually navigates to that route, instead of all views being bundled
-// into the initial page load.
+// The core CRUD views are imported statically (bundled into the one main
+// chunk) rather than lazy-loaded per route. They used to be dynamic
+// `() => import(...)` imports, which is the right default on a CDN — but
+// this app is served straight from an S3 website endpoint with no CDN,
+// no HTTP/2, and no caching in front of it (see DEPLOYMENT.md), where
+// each first-time chunk fetch measured ~1s of pure round-trip latency
+// regardless of the file being a few KB. All four views combined are
+// still well under 50KB gzipped, so bundling them trades that one-time
+// per-route network round trip for a negligible increase to the single
+// bundle the user already waits for on first load. This is what was
+// making "Add Employee" and friends feel slow in production but not in
+// local dev, where that round trip is effectively free.
+//
+// NotFoundView stays lazy — it's off the happy path, so there's no
+// reason to make everyone's bundle bigger for it.
+import EmployeesDashboardView from '@/views/EmployeesDashboardView.vue'
+import EmployeeFormView from '@/views/EmployeeFormView.vue'
+import EmployeeProfileView from '@/views/EmployeeProfileView.vue'
+
 const routes = [
   {
     path: '/',
@@ -17,19 +31,19 @@ const routes = [
   {
     path: '/employees',
     name: 'employees-dashboard',
-    component: () => import('@/views/EmployeesDashboardView.vue'),
+    component: EmployeesDashboardView,
   },
   {
     path: '/employees/new',
     name: 'employee-create',
-    component: () => import('@/views/EmployeeFormView.vue'),
+    component: EmployeeFormView,
   },
   {
     // :companyCode is a route PARAM — Vue Router extracts it from the URL
     // and hands it to the component as `route.params.companyCode`.
     path: '/employees/:companyCode',
     name: 'employee-profile',
-    component: () => import('@/views/EmployeeProfileView.vue'),
+    component: EmployeeProfileView,
     // props: true forwards route params as component PROPS instead of
     // the component having to reach into `useRoute()` itself. This keeps
     // the view decoupled from the router — it just declares
@@ -39,7 +53,7 @@ const routes = [
   {
     path: '/employees/:companyCode/edit',
     name: 'employee-edit',
-    component: () => import('@/views/EmployeeFormView.vue'),
+    component: EmployeeFormView,
     props: true,
   },
   {
