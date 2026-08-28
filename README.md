@@ -92,7 +92,7 @@ repo's controllers or its `README.md` for the current endpoint list.
 | Variable | Used by | Notes |
 |---|---|---|
 | `VITE_API_BASE_URL` | `npm run dev` (`.env`) | e.g. `http://localhost:8080/api`; build-time (inlined into the bundle) |
-| `VITE_API_BASE_URL` | Docker build arg (`.env.compose`) | defaults to `/api` for local Compose (nginx proxies it to the backend container); the deployed build on S3 uses an absolute cross-origin URL instead — see `DEPLOYMENT.md` |
+| `VITE_API_BASE_URL` | Docker build arg (`.env.compose`) | defaults to `/api` for local Compose (nginx proxies it to the backend container); the deployed build uses the same relative `/api`, proxied by CloudFront to the backend instead — see `DEPLOYMENT.md` |
 
 For the full local Docker Compose stack (`MYSQL_ROOT_PASSWORD`,
 `MYSQL_DATABASE`, `MYSQL_USER`, `MYSQL_PASSWORD`, `MYSQL_PORT`,

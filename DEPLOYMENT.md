@@ -57,10 +57,17 @@ Runs on every push to `main`, plus manual `workflow_dispatch`. It:
 1. `npm ci` + `npm run build`, with `VITE_API_BASE_URL` (a repo Actions
    variable) as a real build-time env var — Vite inlines it into the
    compiled bundle, so it has to be set before `vite build` runs, not
-   after. It's an **absolute, cross-origin URL** (the backend EC2
-   instance's Elastic IP), not a relative `/api` path — frontend (S3)
-   and backend (EC2) are different origins in this deployment, which is
-   why every backend controller carries `@CrossOrigin("*")`.
+   after. It's the **relative path `/api`**, same as local dev — the
+   backend repo's `infra/cloudfront.tf` routes `/api/*` on the same
+   CloudFront distribution to the EC2 backend, so the deployed frontend
+   and API share one HTTPS origin as far as the browser is concerned.
+   (This changed from an earlier, absolute cross-origin EC2 URL: once the
+   frontend moved to HTTPS via CloudFront, a plain-HTTP absolute API URL
+   would have been blocked by every browser as mixed content. Every
+   backend controller still carries `@CrossOrigin("*")`, which remains
+   harmless now that requests are same-origin, and keeps direct
+   cross-origin access to the EC2 endpoint — see `api_base_url` — working
+   for debugging.)
 2. Syncs `dist/` to the `S3_BUCKET` repo variable, in two passes:
    hashed JS/CSS get a long, immutable cache (safe — a new deploy gets
    new filenames), `index.html` gets `no-cache` explicitly, since a
@@ -90,24 +97,29 @@ for the full first-time setup). What's specific to this repo: after that
 apply succeeds, set in this repo's GitHub settings (Settings → Secrets
 and variables → Actions → Variables): `AWS_DEPLOY_ROLE_ARN` (Terraform's
 `github_deploy_role_arn_frontend` output), `AWS_REGION`, `S3_BUCKET`
-(Terraform's `frontend_bucket_name` output), `VITE_API_BASE_URL`
-(Terraform's `api_base_url` output — re-run this workflow after any
-change to the backend's Elastic IP or port, since the value is baked
-into the bundle at build time), and `CLOUDFRONT_DISTRIBUTION_ID`
+(Terraform's `frontend_bucket_name` output), `VITE_API_BASE_URL` (just
+the literal string `/api` — see the CD section above for why this is
+relative, not one of Terraform's outputs), and `CLOUDFRONT_DISTRIBUTION_ID`
 (Terraform's `cloudfront_distribution_id` output — used by CD to
 invalidate the cache after each deploy).
 
-HTTPS: solved for the frontend. It's served through CloudFront
-(`infra/cloudfront.tf` in the backend repo) over its default
-`*.cloudfront.net` certificate — no custom domain or ACM cert needed for
-that. A real custom domain is still a TODO (would need Route53 + an ACM
-cert). The backend API is a separate surface and still has no TLS at
-all — see the backend repo's `DEPLOYMENT.md` "Known gaps" for that.
+HTTPS: solved for both the frontend and the API. Both are served through
+the same CloudFront distribution (`infra/cloudfront.tf` in the backend
+repo) over its default `*.cloudfront.net` certificate — no custom domain
+or ACM cert needed for that. A real custom domain is still a TODO (would
+need Route53 + an ACM cert). The EC2 instance itself still has no TLS
+listener of its own — CloudFront talks plain HTTP to it as the `/api/*`
+origin, same as any other CloudFront-fronted backend — see the backend
+repo's `DEPLOYMENT.md` Architecture section and "Known gaps" for the
+detail.
 
 Access control: the S3 bucket is private (CloudFront Origin Access
-Control is the only reader). `api_allowed_cidrs` is enforced at the edge
-by a CloudFront Function (`infra/cloudfront_function.js.tftpl`) rather
-than the old S3 bucket-policy IP condition — same restriction, different
+Control is the only reader), and the EC2 origin is reachable directly in
+addition to through CloudFront (for debugging — see `api_base_url`).
+`api_allowed_cidrs` is enforced at the edge by two CloudFront Functions,
+one per path (`infra/cloudfront_function.js.tftpl` for the frontend,
+`infra/cloudfront_function_api.js.tftpl` for `/api/*`) rather than the
+old S3 bucket-policy IP condition — same restriction, different
 mechanism, since CloudFront doesn't support `aws:SourceIp`-style bucket
 conditions.
 
