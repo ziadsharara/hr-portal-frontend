@@ -66,15 +66,21 @@ Runs on every push to `main`, plus manual `workflow_dispatch`. It:
    new filenames), `index.html` gets `no-cache` explicitly, since a
    stale cached `index.html` is what would make a deploy silently not
    show up for a returning visitor.
+3. Invalidates `/index.html` in CloudFront (`CLOUDFRONT_DISTRIBUTION_ID`
+   repo variable), so a deploy is visible immediately instead of waiting
+   out CloudFront's edge cache. Hashed assets never need invalidating —
+   new filenames every deploy means CloudFront never has a stale one
+   cached in the first place.
 
 Authenticates via **GitHub OIDC**, not stored access keys — assumes the
 `hr-portal-github-deploy-frontend` IAM role (`infra/iam_github_oidc.tf`
 in the backend repo), trusted only for this exact repo. That role can
-only write to this one S3 bucket — nothing else, and nothing belonging
-to the backend (in particular, no ECR/ECS/EC2 permissions at all; if you
-see an `ecr:GetAuthorizationToken` or similar AccessDenied here, the
-workflow has drifted back toward the old container-based deploy this
-repo no longer uses).
+only write to this one S3 bucket plus invalidate this one CloudFront
+distribution — nothing else, and nothing belonging to the backend (in
+particular, no ECR/ECS/EC2 permissions at all; if you see an
+`ecr:GetAuthorizationToken` or similar AccessDenied here, the workflow
+has drifted back toward the old container-based deploy this repo no
+longer uses).
 
 ## One-time AWS setup
 
@@ -84,12 +90,28 @@ for the full first-time setup). What's specific to this repo: after that
 apply succeeds, set in this repo's GitHub settings (Settings → Secrets
 and variables → Actions → Variables): `AWS_DEPLOY_ROLE_ARN` (Terraform's
 `github_deploy_role_arn_frontend` output), `AWS_REGION`, `S3_BUCKET`
-(Terraform's `frontend_bucket_name` output), and `VITE_API_BASE_URL`
+(Terraform's `frontend_bucket_name` output), `VITE_API_BASE_URL`
 (Terraform's `api_base_url` output — re-run this workflow after any
 change to the backend's Elastic IP or port, since the value is baked
-into the bundle at build time).
+into the bundle at build time), and `CLOUDFRONT_DISTRIBUTION_ID`
+(Terraform's `cloudfront_distribution_id` output — used by CD to
+invalidate the cache after each deploy).
 
-HTTPS/custom domain: not set up yet — S3 website endpoints cannot serve
-HTTPS at all, so this needs a CDN (CloudFront or Cloudflare) in front of
-both surfaces before that's possible. See the backend repo's
-`DEPLOYMENT.md` for the same TODO.
+HTTPS: solved for the frontend. It's served through CloudFront
+(`infra/cloudfront.tf` in the backend repo) over its default
+`*.cloudfront.net` certificate — no custom domain or ACM cert needed for
+that. A real custom domain is still a TODO (would need Route53 + an ACM
+cert). The backend API is a separate surface and still has no TLS at
+all — see the backend repo's `DEPLOYMENT.md` "Known gaps" for that.
+
+Access control: the S3 bucket is private (CloudFront Origin Access
+Control is the only reader). `api_allowed_cidrs` is enforced at the edge
+by a CloudFront Function (`infra/cloudfront_function.js.tftpl`) rather
+than the old S3 bucket-policy IP condition — same restriction, different
+mechanism, since CloudFront doesn't support `aws:SourceIp`-style bucket
+conditions.
+
+`hr-portal-frontend/infra/` (the mirrored copy of the canonical
+Terraform) has not been resynced to match — it already predates this
+change and still describes the older shared ALB/ECS stack. See that
+directory's `README.md`.
