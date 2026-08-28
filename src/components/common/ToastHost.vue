@@ -38,12 +38,12 @@ const { dismiss } = toastStore
     guarantee that a toast always outranks a modal.
   -->
   <Teleport to="body">
-    <div class="pointer-events-none fixed bottom-4 right-4 z-toast flex flex-col gap-2">
+    <div class="pointer-events-none fixed inset-x-4 bottom-4 z-toast flex flex-col items-end gap-2 md:inset-x-auto md:right-4">
       <TransitionGroup name="toast">
         <div
           v-for="toast in toasts"
           :key="toast.id"
-          class="pointer-events-auto flex w-80 items-start gap-2 rounded border bg-white px-4 py-3 shadow-modal"
+          class="pointer-events-auto flex w-full items-start gap-2 rounded border bg-white px-4 py-3 shadow-modal md:w-80"
           :class="toast.type === 'error' ? 'border-red-200' : 'border-emerald-200'"
         >
           <Icon

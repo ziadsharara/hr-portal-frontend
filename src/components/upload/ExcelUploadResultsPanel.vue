@@ -23,7 +23,7 @@ defineProps({
   <div class="space-y-4">
     <p class="text-body-md font-medium text-slate-800">{{ message }}</p>
 
-    <div class="grid grid-cols-3 gap-3">
+    <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
       <div class="rounded border border-slate-200 bg-slate-50 p-4">
         <p class="text-data-label text-slate-500">Added</p>
         <p class="text-headline-md text-emerald-700">{{ addedCount }}</p>
@@ -44,7 +44,7 @@ defineProps({
       <p class="mb-2 text-data-label text-slate-500">
         These rows couldn't be imported. Fix them in the sheet and re-upload:
       </p>
-      <div class="max-h-80 overflow-y-auto rounded border border-slate-200">
+      <div class="max-h-80 overflow-auto rounded border border-slate-200">
         <table class="w-full border-collapse text-left">
           <thead class="sticky top-0 bg-slate-50">
             <tr class="border-b border-slate-200">

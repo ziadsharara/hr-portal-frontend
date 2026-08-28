@@ -24,8 +24,8 @@ const statusOptions = [
 </script>
 
 <template>
-  <div class="grid grid-cols-12 gap-4">
-    <div class="relative col-span-4">
+  <div class="grid grid-cols-1 gap-4 md:grid-cols-12">
+    <div class="relative md:col-span-4">
       <label class="mb-1 block text-data-label text-slate-500">Search</label>
       <span class="pointer-events-none absolute left-3 top-[38px] text-slate-400">
         <Icon name="search" class="h-4 w-4" />
@@ -46,7 +46,7 @@ const statusOptions = [
       />
     </div>
 
-    <div class="col-span-3">
+    <div class="md:col-span-3">
       <BaseSelect
         v-model="store.filters.status"
         label="Status"
@@ -56,7 +56,7 @@ const statusOptions = [
       />
     </div>
 
-    <div class="col-span-3">
+    <div class="md:col-span-3">
       <BaseSelect
         v-model="store.filters.position"
         label="Position"
@@ -66,7 +66,7 @@ const statusOptions = [
       />
     </div>
 
-    <div class="col-span-2">
+    <div class="md:col-span-2">
       <BaseSelect
         v-model="store.filters.organizationalUnit"
         label="Org Unit"

@@ -30,7 +30,7 @@ defineProps({
     </div>
     <p v-else class="text-body-md font-medium text-slate-800">{{ message }}</p>
 
-    <div class="grid grid-cols-2 gap-3">
+    <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
       <div class="rounded border border-slate-200 bg-slate-50 p-4">
         <p class="text-data-label text-slate-500">New employees added</p>
         <p class="text-headline-md text-emerald-700">{{ addedCount }}</p>

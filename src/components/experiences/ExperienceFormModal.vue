@@ -140,17 +140,17 @@ async function handleSubmit() {
         {{ formError }}
       </p>
 
-      <div class="grid grid-cols-2 gap-4">
+      <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
         <BaseInput v-model="form.project" label="Project" required :error="fieldErrors.project" />
         <BaseInput v-model="form.projectType" label="Project Type" placeholder="Implementation, Support, Rollout…" />
       </div>
 
-      <div class="grid grid-cols-2 gap-4">
+      <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
         <BaseInput v-model="form.role" label="Role" required :error="fieldErrors.role" />
         <BaseInput v-model="form.industry" label="Industry" />
       </div>
 
-      <div class="grid grid-cols-2 gap-4">
+      <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
         <BaseInput v-model="form.country" label="Country" />
         <BaseInput v-model="form.duration" label="Duration" placeholder="e.g. 12 Months" />
       </div>

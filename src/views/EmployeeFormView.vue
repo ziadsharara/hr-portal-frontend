@@ -236,9 +236,9 @@ function handleCancel() {
         <div class="border-b border-slate-200 px-6 py-3">
           <h2 class="text-headline-sm text-slate-900">{{ group.title }}</h2>
         </div>
-        <div class="grid grid-cols-2 gap-x-6 gap-y-4 p-6">
+        <div class="grid grid-cols-1 gap-4 p-6 md:grid-cols-2 md:gap-x-6 md:gap-y-4">
           <template v-for="field in group.fields" :key="field.key">
-            <div :class="field.type === 'textarea' && 'col-span-2'">
+            <div :class="field.type === 'textarea' && 'md:col-span-2'">
               <BaseSelect
                 v-if="field.type === 'select'"
                 v-model="form[field.key]"

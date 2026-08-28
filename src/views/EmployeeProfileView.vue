@@ -370,7 +370,7 @@ const sortedExperiences = computed(() =>
 
     <template v-else-if="employee">
       <!-- Header -->
-      <div class="mb-6 flex items-start justify-between">
+      <div class="mb-6 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div>
           <div class="flex items-center gap-3">
             <h1 class="text-headline-lg text-slate-900">{{ employee.name }}</h1>
@@ -412,7 +412,7 @@ const sortedExperiences = computed(() =>
             {{ personalInfoFormError }}
           </p>
 
-          <div class="grid grid-cols-3 gap-x-6 gap-y-4">
+          <div class="grid grid-cols-1 gap-4 md:grid-cols-3 md:gap-x-6 md:gap-y-4">
             <template v-for="field in PERSONAL_FIELDS" :key="field.key">
               <!-- Edit mode: a real input bound to the shared employeeForm. -->
               <BaseInput
@@ -469,9 +469,9 @@ const sortedExperiences = computed(() =>
             {{ cvInfoFormError }}
           </p>
 
-          <div class="grid grid-cols-2 gap-x-6 gap-y-4">
+          <div class="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-x-6 md:gap-y-4">
             <template v-for="field in CV_INFO_FIELDS" :key="field.key">
-              <div :class="field.textarea && 'col-span-2'">
+              <div :class="field.textarea && 'md:col-span-2'">
                 <template v-if="editingCvInfo">
                   <BaseTextarea v-if="field.textarea" v-model="employeeForm[field.key]" :label="field.label" :rows="3" />
                   <BaseInput v-else v-model="employeeForm[field.key]" :label="field.label" />
@@ -488,9 +488,9 @@ const sortedExperiences = computed(() =>
 
       <!-- Experience -->
       <section>
-        <div class="mb-3 flex items-center justify-between">
+        <div class="mb-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <h2 class="text-headline-sm text-slate-900">Experience</h2>
-          <div class="flex gap-2">
+          <div class="flex flex-wrap gap-2">
             <BaseButton variant="secondary" @click="showEmployeeUploadModal = true">
               <Icon name="upload" class="h-4 w-4" />
               Upload Excel for this Employee

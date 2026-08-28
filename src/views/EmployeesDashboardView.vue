@@ -50,9 +50,9 @@ function handleExported() {
 
 <template>
   <div class="p-6 pb-24">
-    <div class="mb-6 flex items-center justify-between">
+    <div class="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
       <h1 class="text-headline-lg text-slate-900">Employees</h1>
-      <div class="flex items-center gap-2">
+      <div class="flex flex-wrap items-center gap-2">
         <BaseButton variant="secondary" @click="showEmployeeImportModal = true">
           <Icon name="upload" class="h-4 w-4" />
           Import Employees
@@ -89,15 +89,17 @@ function handleExported() {
 
   <!--
     Sticky bottom action bar — deliberately `fixed` (not CSS `sticky`)
-    positioned relative to the viewport, offset past the sidebar's fixed
-    width (left-60 = 15rem, matching AppSidebar's w-60), so it stays
-    pinned to the bottom of the screen regardless of how tall the table
-    or how far the page has scrolled.
+    positioned relative to the viewport, so it stays pinned to the bottom
+    of the screen regardless of how tall the table or how far the page
+    has scrolled. md:left-60 offsets it past the sidebar's fixed width
+    (15rem, matching AppSidebar's w-60) at md+, where the sidebar is
+    always visible; below md the sidebar is off-canvas (see
+    AppSidebar.vue), so the bar spans the full width there instead.
   -->
   <Transition name="slide-up">
     <div
       v-if="store.selectedCount > 0"
-      class="fixed inset-x-0 bottom-0 left-60 flex items-center justify-between border-t border-slate-200 bg-slate-900/[0.02] px-6 py-3 backdrop-blur-sm"
+      class="fixed inset-x-0 bottom-0 flex items-center justify-between border-t border-slate-200 bg-slate-900/[0.02] px-6 py-3 backdrop-blur-sm md:left-60"
     >
       <p class="text-body-md font-medium text-slate-700">{{ store.selectedCount }} selected</p>
       <div class="flex items-center gap-2">
